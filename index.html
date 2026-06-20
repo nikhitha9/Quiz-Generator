@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Quiz Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: sans-serif;
+      background: #f4f4f4;
+      display: flex;
+      justify-content: center;
+      padding: 40px 16px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 32px;
+      width: 100%;
+      max-width: 680px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+
+    h1 { font-size: 24px; margin-bottom: 8px; color: #111; }
+    p.subtitle { color: #666; font-size: 14px; margin-bottom: 24px; }
+
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 15px;
+      margin-bottom: 12px;
+      outline: none;
+    }
+
+    input:focus { border-color: #6c63ff; }
+
+    button#generateBtn {
+      width: 100%;
+      padding: 12px;
+      background: #6c63ff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    button#generateBtn:hover { background: #574fd6; }
+    button#generateBtn:disabled { background: #aaa; cursor: not-allowed; }
+
+    #status {
+      text-align: center;
+      color: #666;
+      font-size: 14px;
+      margin: 16px 0;
+      min-height: 20px;
+    }
+
+    .question-card {
+      background: #f9f9f9;
+      border: 1px solid #eee;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .question-text {
+      font-size: 15px;
+      font-weight: 600;
+      color: #111;
+      margin-bottom: 12px;
+    }
+
+    .option {
+      display: block;
+      width: 100%;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      background: white;
+      text-align: left;
+      transition: background 0.15s;
+    }
+
+    .option:hover { background: #f0eeff; border-color: #6c63ff; }
+    .option.selected { background: #ece9ff; border-color: #6c63ff; font-weight: 500; }
+    .option.correct { background: #e6f9ee; border-color: #27ae60; color: #1a7a42; }
+    .option.wrong { background: #fdecea; border-color: #e74c3c; color: #b03022; }
+
+    .explanation-box {
+      margin-top: 12px;
+      padding: 12px 14px;
+      background: #fffbe6;
+      border-left: 3px solid #f0ad00;
+      border-radius: 0 8px 8px 0;
+      font-size: 13px;
+      color: #555;
+      line-height: 1.6;
+      display: none;
+    }
+
+    button#submitBtn {
+      width: 100%;
+      padding: 12px;
+      background: #27ae60;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      cursor: pointer;
+      margin-top: 8px;
+      display: none;
+    }
+
+    button#submitBtn:hover { background: #1e8449; }
+    button#submitBtn:disabled { background: #aaa; cursor: not-allowed; }
+
+    #result {
+      margin-top: 24px;
+      padding: 20px;
+      background: #f0eeff;
+      border-radius: 10px;
+      font-size: 15px;
+      color: #333;
+      display: none;
+      text-align: center;
+    }
+
+    #result .score {
+      font-size: 32px;
+      font-weight: 700;
+      color: #6c63ff;
+      margin-bottom: 8px;
+    }
+
+    #result .explaining {
+      font-size: 13px;
+      color: #888;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>AI Quiz Generator</h1>
+    <p class="subtitle">Type any topic and get 5 questions instantly</p>
+
+    <input type="text" id="topicInput" placeholder="e.g. Python basics, World War 2, Cricket...">
+    <button id="generateBtn" onclick="generateQuiz()">Generate Quiz</button>
+
+    <div id="status"></div>
+    <div id="quizArea"></div>
+    <button id="submitBtn" onclick="submitQuiz()">Submit Answers</button>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    let correctAnswers = [];
+    let allQuestions = [];
+    let currentTopic = '';
+
+    async function generateQuiz() {
+      const topic = document.getElementById('topicInput').value.trim();
+      if (!topic) { alert('Please enter a topic first!'); return; }
+
+      currentTopic = topic;
+      document.getElementById('generateBtn').disabled = true;
+      document.getElementById('generateBtn').textContent = 'Generating...';
+      document.getElementById('status').textContent = 'Claude is creating your quiz...';
+      document.getElementById('quizArea').innerHTML = '';
+      document.getElementById('submitBtn').style.display = 'none';
+      document.getElementById('result').style.display = 'none';
+
+      try {
+        const response = await fetch('http://127.0.0.1:8000/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic })
+        });
+
+        const data = await response.json();
+        allQuestions = data.questions;
+        correctAnswers = data.questions.map(q => q.answer);
+        renderQuestions(data.questions);
+
+        document.getElementById('status').textContent = '';
+        document.getElementById('submitBtn').style.display = 'block';
+
+      } catch (error) {
+        document.getElementById('status').textContent = 'Something went wrong. Is your backend running?';
+      }
+
+      document.getElementById('generateBtn').disabled = false;
+      document.getElementById('generateBtn').textContent = 'Generate Quiz';
+    }
+
+    function renderQuestions(questions) {
+      const area = document.getElementById('quizArea');
+      area.innerHTML = '';
+
+      questions.forEach((q, index) => {
+        const card = document.createElement('div');
+        card.className = 'question-card';
+        card.dataset.index = index;
+
+        card.innerHTML = `<div class="question-text">Q${index + 1}. ${q.question}</div>`;
+
+        q.options.forEach(option => {
+          const letter = option.charAt(0);
+          const btn = document.createElement('button');
+          btn.className = 'option';
+          btn.textContent = option;
+          btn.dataset.letter = letter;
+          btn.onclick = () => selectOption(btn, index);
+          card.appendChild(btn);
+        });
+
+        // Empty explanation box — filled after submit
+        const expBox = document.createElement('div');
+        expBox.className = 'explanation-box';
+        expBox.id = `exp-${index}`;
+        card.appendChild(expBox);
+
+        area.appendChild(card);
+      });
+    }
+
+    function selectOption(btn, questionIndex) {
+      const card = btn.closest('.question-card');
+      card.querySelectorAll('.option').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    }
+
+    async function submitQuiz() {
+      // Collect user answers
+      const userAnswers = {};
+      const cards = document.querySelectorAll('.question-card');
+      let score = 0;
+
+      cards.forEach((card, index) => {
+        const selected = card.querySelector('.option.selected');
+        const correct = correctAnswers[index];
+
+        // Lock options and colour them
+        card.querySelectorAll('.option').forEach(btn => {
+          btn.onclick = null;
+          btn.style.cursor = 'default';
+          if (btn.dataset.letter === correct) btn.classList.add('correct');
+          else if (btn.classList.contains('selected')) btn.classList.add('wrong');
+        });
+
+        if (selected) {
+          userAnswers[index] = selected.dataset.letter;
+          if (selected.dataset.letter === correct) score++;
+        } else {
+          userAnswers[index] = "Not answered";
+        }
+      });
+
+      // Show score immediately
+      const resultDiv = document.getElementById('result');
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = `
+        <div class="score">${score} / ${correctAnswers.length}</div>
+        <div>${score === correctAnswers.length ? 'Perfect score! Excellent work!' :
+              score >= 3 ? 'Good job! Keep it up!' :
+              'Keep practicing, you\'ll get there!'}</div>
+        <div class="explaining">Claude is explaining your wrong answers...</div>
+      `;
+
+      document.getElementById('submitBtn').style.display = 'none';
+
+      // Only call /explain if there are wrong answers
+      if (score < correctAnswers.length) {
+        try {
+          const res = await fetch('http://127.0.0.1:8000/explain', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              topic: currentTopic,
+              questions: allQuestions,
+              user_answers: userAnswers
+            })
+          });
+
+          const data = await res.json();
+
+          if (!data.all_correct && data.explanations) {
+            // Match explanations back to question cards
+            data.explanations.forEach(exp => {
+              const cardIndex = allQuestions.findIndex(q => q.question === exp.question);
+              if (cardIndex !== -1) {
+                const expBox = document.getElementById(`exp-${cardIndex}`);
+                expBox.textContent = exp.explanation;
+                expBox.style.display = 'block';
+              }
+            });
+          }
+
+          // Remove the "explaining..." message
+          document.querySelector('.explaining').remove();
+
+        } catch (err) {
+          document.querySelector('.explaining').textContent = 'Could not load explanations.';
+        }
+      } else {
+        document.querySelector('.explaining').remove();
+      }
+    }
+
+    document.getElementById('topicInput').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') generateQuiz();
+    });
+  </script>
+</body>
+</html>
